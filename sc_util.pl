@@ -25,6 +25,7 @@ my $glade = Gtk2::GladeXML->new("sc_util.glade");
 $glade->signal_autoconnect_from_package('main');
 
 my $hex_in = $glade->get_widget('entry1');
+
 my $editor = $glade->get_widget('textview1');
 my $buffer = $editor->get_buffer();
 
@@ -46,7 +47,7 @@ sub append {
 
     $buffer->insert($end,$text);
     $end = $buffer->get_end_iter();
-    $editor->scroll_to_iter($end,0,0,0,0);
+    $editor->scroll_to_iter($end,0.0,FALSE,0.0,0.0);
 }
 
 sub bin_to_hex {
