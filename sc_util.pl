@@ -7,6 +7,8 @@ use Gtk2::GladeXML;
 
 my $dir="";
 
+die "usage: $0 /dev/tty..." if not defined($ARGV[0]);
+
 my $device = tie(*FH, "Device::SerialPort", $ARGV[0]) or die "open failed";
 $device->baudrate(9600) or die "baudrate failed";
 $device->parity("even") or die "parity failed";
