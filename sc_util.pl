@@ -132,7 +132,7 @@ sub send_hex {
 		s/^\s+//;
 	}
 	
-	if(/x/) {
+	if(/\s+x/) {
 		$mult=$_;
 		$mult=~ s/.*?x//;
 		$mult=~ s/^\s+//;
@@ -141,11 +141,12 @@ sub send_hex {
 		s/\s+$//;
 	}
 	
-	$bin = hex_to_bin($_);
-	
 	# lookup keyword
 	if(defined $shortcuts{$_}) {
 		$bin = $shortcuts{$_};
+	}
+	else {
+		$bin = hex_to_bin($_);
 	}
 	
 	# multiply?
