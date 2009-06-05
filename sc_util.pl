@@ -2,6 +2,7 @@
 
 use Device::SerialPort;
 use Gtk2 '-init'; # auto-initializes Gtk2
+use Gtk2::Gdk::Keysyms;
 use Glib;
 use Gtk2::GladeXML;
 
@@ -76,6 +77,9 @@ my $rcvd = 0;
 my $expect=0;
 
 my %shortcuts;
+
+my @history;
+my $history_pos=0;
 
 if (defined $ARGV[1]) {
 	open(SC,$ARGV[1]);
@@ -160,8 +164,6 @@ sub send_hex {
 		$shortcuts{$key}=$bin;
 	}
 	
-	$hex_in->set_text("");
-	
 	append(">",bin_to_hex(length($bin),$bin));
 	$device->write($bin);
 	$skip=length($bin);
@@ -199,6 +201,13 @@ sub read_cb {
 
 sub entry1_activate_cb {
 	send_hex($hex_in->get_text());
+	
+	$history_pos = 0;
+	$history[0] = $hex_in->get_text();
+	chomp($history[0]);
+	unshift(@history, "");
+
+	$hex_in->set_text("");
 }
 
 sub btn_reset_clicked_cb {
@@ -217,6 +226,35 @@ sub on_exec_btn_clicked {
 	$expect = (length($script[1])-1)/3;
 	$script_line=2;
 	$script_pos = 0;
+}
+
+sub on_entry1_key_press_event {
+	my ($widget, $event) = @_;
+	my $key = $event->keyval;
+	my $lastpos = $history_pos;
+		
+	if($key == $Gtk2::Gdk::Keysyms{Up}) {
+		$history_pos++;
+	}
+	elsif($key == $Gtk2::Gdk::Keysyms{Down}) {
+		$history_pos--;
+	}
+	else {
+		return;
+	}
+	
+	if($lastpos == 0) {
+		$history[0] = $hex_in->get_text();
+		chomp($history[0]);
+	}
+	
+	$history_pos = 0 if $history_pos > $#history;
+	$history_pos = $#history if $history_pos < 0;
+	
+	$hex_in->set_text($history[$history_pos]);
+	$hex_in->set_position(-1);
+	
+	return 1; # we did handle that event ourself! don't move the damn focus away!
 }
 
 sub window1_destroy_cb {
