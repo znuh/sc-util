@@ -68,7 +68,7 @@ $device->stopbits(2) or die "stopbits failed";
 $device->handshake("none") or die "handshake failed";
 
 if($term eq "fpga") {
-	$device->baudrate(4800) or die "baudrate failed";
+	$device->baudrate(9600) or die "baudrate failed";
 	$device->parity("none") or die "parity failed";
 	#$device->write("\x4f");
 }
@@ -206,7 +206,7 @@ sub send_hex {
 		$bin="";
 		
 		foreach(@bin) {
-			$bin.="\x80$_";
+			$bin.="\x00\x80$_";
 		}
 		
 		$skip=0;
