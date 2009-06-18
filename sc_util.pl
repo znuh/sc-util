@@ -43,16 +43,41 @@ sub hex_to_bin {
 }
 
 my $dir="";
+my $term="";
 
-die "usage: $0 /dev/tty..." if not defined($ARGV[0]);
+if($ARGV[0] =~ /^fpga:/) {
+	$term="fpga";
+}
+elsif($ARGV[0] =~ /^phoenix:/) {
+	$term="phoenix";
+}
+else {
+	print "usage: $0 <terminal>:<device> (<macro file>)\n";
+	print "where terminal is either fpga or phoenix\n";
+	print "example: $0 fpga:/dev/ttyUSB0\n";
+	exit;
+}
 
-my $device = tie(*FH, "Device::SerialPort", $ARGV[0]) or die "open failed";
-$device->baudrate(9600) or die "baudrate failed";
-$device->parity("even") or die "parity failed";
+$_ = $ARGV[0];
+s/.*?://;
+
+my $device = tie(*FH, "Device::SerialPort", $_) or die "open failed: $_";
+
 $device->databits(8) or die "databits failed";
 $device->stopbits(2) or die "stopbits failed";
 $device->handshake("none") or die "handshake failed";
-$device->rts_active(0) or die "RTS failed";
+
+if($term eq "fpga") {
+	$device->baudrate(4800) or die "baudrate failed";
+	$device->parity("none") or die "parity failed";
+	#$device->write("\x4f");
+}
+elsif($term eq "phoenix") {
+	$device->baudrate(9600) or die "baudrate failed";
+	$device->parity("even") or die "parity failed";
+	#$device->rts_active(0) or die "RTS failed";
+}
+
 $device->write_settings or die "cannot write serial settings";
 
 my $w = Glib::IO->add_watch(fileno(FH), 'in', \&read_cb) or die "cannot watch device!";
@@ -65,6 +90,7 @@ my $hex_in = $glade->get_widget('entry1');
 my $file_in = $glade->get_widget('file_entry');
 
 my $editor = $glade->get_widget('textview1');
+my $scrollwin = $glade->get_widget('scrolledwindow1');
 my $buffer = $editor->get_buffer();
 
 my $skip=0;
@@ -92,6 +118,8 @@ if (defined $ARGV[1]) {
 	close(SC);
 }
 
+$buffer->signal_connect("insert_text" => text_insertion_done);
+
 Gtk2->main;
 
 if (defined $ARGV[1]) {
@@ -105,6 +133,11 @@ if (defined $ARGV[1]) {
 
 exit 0;
 
+sub text_insertion_done {
+	my $end = $buffer->get_end_iter();
+	$editor->scroll_to_iter($end,0.0,FALSE,0.0,0.0);
+}
+
 sub append {
     my $newdir=shift;
     my $text = shift;    
@@ -116,8 +149,6 @@ sub append {
     }
 
     $buffer->insert($end,$text);
-    $end = $buffer->get_end_iter();
-    $editor->scroll_to_iter($end,0.0,FALSE,0.0,0.0);
 }
 
 sub send_hex {
@@ -159,14 +190,32 @@ sub send_hex {
 		$bin.=$_;
 	}
 	
+	return 0 if length($bin) == 0;
+	
 	# save?
 	if(length($key)>0) {
 		$shortcuts{$key}=$bin;
 	}
 	
 	append(">",bin_to_hex(length($bin),$bin));
-	$device->write($bin);
-	$skip=length($bin);
+
+	if($term eq "fpga") {
+		
+		@bin=split(//,$bin);
+		
+		$bin="";
+		
+		foreach(@bin) {
+			$bin.="\x80$_";
+		}
+		
+		$skip=0;
+	}
+	elsif ($term eq "phoenix") {
+		$skip = length($bin);
+	}
+	
+	return $device->write($bin);
 }
 
 sub read_cb {
@@ -200,7 +249,10 @@ sub read_cb {
 }
 
 sub entry1_activate_cb {
-	send_hex($hex_in->get_text());
+
+	if(send_hex($hex_in->get_text()) <= 0) {
+		return;
+	}
 	
 	$history_pos = 0;
 	$history[0] = $hex_in->get_text();
@@ -212,7 +264,14 @@ sub entry1_activate_cb {
 
 sub btn_reset_clicked_cb {
     append(">","RESET ");
-    $device->pulse_rts_on(50);
+		if($term eq "phoenix") {
+			$device->pulse_rts_on(50);
+		}
+		elsif($term eq "fpga") {
+			$device->write("\x4b");
+			select(undef, undef, undef, 0.2);
+			$device->write("\x4f");
+		}
 }
 
 sub on_exec_btn_clicked {
@@ -258,5 +317,6 @@ sub on_entry1_key_press_event {
 }
 
 sub window1_destroy_cb {
+		#$device->write("\x40") if $term eq "fpga";
     Gtk2->main_quit();
 }
