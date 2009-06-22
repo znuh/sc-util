@@ -157,6 +157,24 @@
 	      <property name="fill">False</property>
 	    </packing>
 	  </child>
+
+	  <child>
+	    <widget class="GtkFileChooserButton" id="filechooserbutton1">
+	      <property name="visible">True</property>
+	      <property name="title" translatable="yes">Select A File</property>
+	      <property name="action">GTK_FILE_CHOOSER_ACTION_OPEN</property>
+	      <property name="local_only">True</property>
+	      <property name="show_hidden">False</property>
+	      <property name="do_overwrite_confirmation">False</property>
+	      <property name="width_chars">-1</property>
+	      <signal name="file_set" handler="on_filechooserbutton1_file_set" last_modification_time="Mon, 22 Jun 2009 11:49:18 GMT"/>
+	    </widget>
+	    <packing>
+	      <property name="padding">0</property>
+	      <property name="expand">False</property>
+	      <property name="fill">False</property>
+	    </packing>
+	  </child>
 	</widget>
 	<packing>
 	  <property name="padding">0</property>

@@ -127,9 +127,11 @@ $buffer->signal_connect( "insert_text" => text_insertion_done );
 
 Gtk2->main;
 
+# save macros
 if ( defined $ARGV[1] ) {
     open( SC, ">$ARGV[1]" );
-    while ( ( $key, $val ) = each %shortcuts ) {
+    foreach $key ( sort ( keys(%shortcuts) ) ) {
+        my $val = $shortcuts{$key};
         $val = bin_to_hex( length($val), $val );
         print SC "$key=$val\n";
     }
@@ -328,4 +330,10 @@ sub window1_destroy_cb {
 
     #$device->write("\x40") if $term eq "fpga";
     Gtk2->main_quit();
+}
+
+sub on_filechooserbutton1_file_set {
+    my $widget = shift;
+
+    $file_in->set_text( $widget->get_filename() );
 }
