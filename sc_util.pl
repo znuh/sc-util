@@ -98,6 +98,13 @@ my $editor    = $glade->get_widget('textview1');
 my $scrollwin = $glade->get_widget('scrolledwindow1');
 my $buffer    = $editor->get_buffer();
 
+my $clkdiv_val = 0;
+
+if ( $term eq "fpga" ) {
+    my $hbox3 = $glade->get_widget('hbox3');
+    $hbox3->set( visible => 'true' );
+}
+
 my $skip = 0;
 
 my @script = ();
@@ -336,4 +343,29 @@ sub on_filechooserbutton1_file_set {
     my $widget = shift;
 
     $file_in->set_text( $widget->get_filename() );
+}
+
+sub on_clkdiv_spinbtn_value_changed {
+    my $spinbtn    = shift;
+    my $val        = int( $spinbtn->get_value() );
+    my $freq_label = $glade->get_widget('freq_label');
+    my $freq       = 20000 / $val;
+    my $text;
+
+    if ( $freq >= 1000 ) {
+        $text = sprintf( "= %2.6f MHz ", $freq / 1000 );
+    }
+    else {
+        $text = sprintf( "= %3.3f kHz ", $freq );
+    }
+    $text .= "(IO\@" . int( ( $freq * 1000 ) / 372 ) . " baud)";
+    $freq_label->set_text($text);
+
+    $clkdiv_val = $val - 1;
+    $clkdiv_val += 0x20;
+    $clkdiv_val = chr($clkdiv_val);
+}
+
+sub on_set_clkdiv_btn_clicked {
+    $device->write($clkdiv_val);
 }
