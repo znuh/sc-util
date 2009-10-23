@@ -6,6 +6,8 @@ use Gtk2::Gdk::Keysyms;
 use Glib;
 use Gtk2::GladeXML;
 
+my $base_freq;
+
 sub bin_to_hex {
     my $text;
     my $cnt;
@@ -47,8 +49,12 @@ sub hex_to_bin {
 my $dir  = "";
 my $term = "";
 
-if ( $ARGV[0] =~ /^fpga:/ ) {
+if ( $ARGV[0] =~ /^fpga:/ ){
     $term = "fpga";
+    $base_freq = $ARGV[0];
+    $base_freq =~ s/.*?://;
+    $base_freq =~ s/:.*//;
+    die if $base_freq < 1;
 }
 elsif ( $ARGV[0] =~ /^phoenix:/ ) {
     $term = "phoenix";
@@ -61,7 +67,7 @@ else {
 }
 
 $_ = $ARGV[0];
-s/.*?://;
+s/.*://;
 
 my $device = tie( *FH, "Device::SerialPort", $_ ) or die "open failed: $_";
 
@@ -70,7 +76,7 @@ $device->stopbits(2)       or die "stopbits failed";
 $device->handshake("none") or die "handshake failed";
 
 if ( $term eq "fpga" ) {
-    $device->baudrate(9600) or die "baudrate failed";
+    $device->baudrate(38400) or die "baudrate failed";
     $device->parity("none") or die "parity failed";
 
     #$device->write("\x4f");
@@ -97,6 +103,9 @@ my $file_in = $glade->get_widget('file_entry');
 my $editor    = $glade->get_widget('textview1');
 my $scrollwin = $glade->get_widget('scrolledwindow1');
 my $buffer    = $editor->get_buffer();
+
+my $freq_label = $glade->get_widget('label1');
+$freq_label->set_text("set CLK = ".($base_freq/1000)."MHz / ");
 
 my $clkdiv_val = 0;
 
@@ -221,7 +230,7 @@ sub send_hex {
         $bin = "";
 
         foreach (@bin) {
-            $bin .= "\x00\x80$_";
+            $bin .= "\x80$_";
         }
 
         $skip = 0;
@@ -349,7 +358,7 @@ sub on_clkdiv_spinbtn_value_changed {
     my $spinbtn    = shift;
     my $val        = int( $spinbtn->get_value() );
     my $freq_label = $glade->get_widget('freq_label');
-    my $freq       = 20000 / $val;
+    my $freq       = ($base_freq/2) / $val;
     my $text;
 
     if ( $freq >= 1000 ) {
