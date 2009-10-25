@@ -7,6 +7,7 @@ use Glib;
 use Gtk2::GladeXML;
 
 my $base_freq;
+my $clkdiv;
 
 sub bin_to_hex {
     my $text;
@@ -174,12 +175,47 @@ sub append {
     $buffer->insert( $end, $text );
 }
 
+sub glitch {
+	my @divs= {};
+	my $cnt;
+	my $snd_string;
+	
+	# default clkdiv
+	for($cnt=0; $cnt<22; $cnt++) {
+		$divs[$cnt]=$clkdiv;
+	}
+	
+	# (cycle,div) tuples
+	@_ = split(/,/,shift);
+	for($cnt=0; $cnt<=$#_; $cnt+=2) {
+		$divs[$_[$cnt]]=$_[$cnt+1];
+	}
+	
+	# prepare cmd buf
+	for($cnt=0; $cnt<22; $cnt++) {
+		#print "$cnt $divs[$cnt]\n";
+		$divs[$cnt] |= 0x60;
+		$snd_string = $snd_string . chr($divs[$cnt]);
+	}
+	$snd_string = $snd_string . chr(0x70);
+	
+	append( "", "!GLITCH $_\n" );
+	
+	return $device->write($snd_string);
+	
+}
+
 sub send_hex {
     my $key  = "";
     my $mult = 1;
     my $bin;
 
     $_ = shift;
+
+	if (/^glitch/) {
+		s/.*?\s+//;
+		return glitch($_);
+	}
 
     #print "$_\n";
 
@@ -358,7 +394,7 @@ sub on_clkdiv_spinbtn_value_changed {
     my $spinbtn    = shift;
     my $val        = int( $spinbtn->get_value() );
     my $freq_label = $glade->get_widget('freq_label');
-    my $freq       = ($base_freq/2) / $val;
+    my $freq       = $base_freq / $val;
     my $text;
 
     if ( $freq >= 1000 ) {
@@ -371,6 +407,7 @@ sub on_clkdiv_spinbtn_value_changed {
     $freq_label->set_text($text);
 
     $clkdiv_val = $val - 1;
+    $clkdiv = $clkdiv_val;
     $clkdiv_val += 0x20;
     $clkdiv_val = chr($clkdiv_val);
 }
