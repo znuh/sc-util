@@ -55,7 +55,7 @@ my $t1_enabled = 0;
 my $t1_last_pcb = 0x40;
 
 if ( $ARGV[0] =~ /^fpga:/ ) {
-    $term = "fpga";
+    $term      = "fpga";
     $base_freq = $ARGV[0];
     $base_freq =~ s/.*?://;
     $base_freq =~ s/:.*//;
@@ -77,31 +77,31 @@ else {
 $_ = $ARGV[0];
 s/.*://;
 
-if($term ne "null") {
+if ( $term ne "null" ) {
 
-	my $device = tie( *FH, "Device::SerialPort", $_ ) or die "open failed: $_";
+    my $device = tie( *FH, "Device::SerialPort", $_ ) or die "open failed: $_";
 
-	$device->databits(8)       or die "databits failed";
-	$device->stopbits(2)       or die "stopbits failed";
-	$device->handshake("none") or die "handshake failed";
+    $device->databits(8)       or die "databits failed";
+    $device->stopbits(2)       or die "stopbits failed";
+    $device->handshake("none") or die "handshake failed";
 
-	if ( $term eq "fpga" ) {
-	$device->baudrate(38400) or die "baudrate failed";
-	$device->parity("none") or die "parity failed";
+    if ( $term eq "fpga" ) {
+        $device->baudrate(38400) or die "baudrate failed";
+        $device->parity("none")  or die "parity failed";
 
-	#$device->write("\x4f");
-	}
-	elsif ( $term eq "phoenix" ) {
-	$device->baudrate(9600) or die "baudrate failed";
-	$device->parity("even") or die "parity failed";
+        #$device->write("\x4f");
+    }
+    elsif ( $term eq "phoenix" ) {
+        $device->baudrate(9600) or die "baudrate failed";
+        $device->parity("even") or die "parity failed";
 
-	#$device->rts_active(0) or die "RTS failed";
-	}
+        #$device->rts_active(0) or die "RTS failed";
+    }
 
-	$device->write_settings or die "cannot write serial settings";
+    $device->write_settings or die "cannot write serial settings";
 
-	my $w = Glib::IO->add_watch( fileno(FH), 'in', \&read_cb )
-	or die "cannot watch device!";
+    my $w = Glib::IO->add_watch( fileno(FH), 'in', \&read_cb )
+      or die "cannot watch device!";
 }
 
 my $glade = Gtk2::GladeXML->new("sc_util.glade");
@@ -123,7 +123,7 @@ my $t1_len_entry = $glade->get_widget('t1_len_entry');
 my $t1_edc_entry = $glade->get_widget('t1_edc_entry');
 
 my $freq_label = $glade->get_widget('label1');
-$freq_label->set_text("set CLK = ".($base_freq/1000)."MHz / ");
+$freq_label->set_text( "set CLK = " . ( $base_freq / 1000 ) . "MHz / " );
 
 my $clkdiv_val = 0;
 
@@ -193,73 +193,74 @@ sub append {
 }
 
 sub t1_encap {
-	my $res = shift;
-	my $t1_nad = $t1_nad_entry->get_text();
-	my $t1_pcb = $t1_pcb_entry->get_text();
-	my $t1_len = $t1_len_entry->get_text();
-	my $t1_edc = $t1_edc_entry->get_text();
-	
-	$t1_nad = hex_to_bin($t1_nad);
-	
-	if (length($t1_pcb)>0) {
-		$t1_pcb = hex_to_bin($t1_pcb);
-	}
-	else {
-		$t1_pcb = $t1_last_pcb ^ 0x40;
-		$t1_last_pcb = $t1_pcb;
-		$t1_pcb = chr($t1_pcb);
-	}
-	
-	if (length($t1_len)>0) {
-		$t1_len = hex_to_bin($t1_len);
-	}
-	else {
-		$t1_len = chr(length($res));
-	}
-	
-	if (length($t1_edc)>0) {
-		$t1_edc = hex_to_bin($t1_edc);
-	}
-	else {
-		my $cnt;
-		$t1_edc = 0;
-		for($cnt=0; $cnt<length($res); $cnt++) {
-			$t1_edc ^= ord(substr($res,$cnt,1));
-		}
-		$t1_edc = chr($t1_edc);
-	}
-	
-	return ($t1_nad . $t1_pcb . $t1_len . $res . $t1_edc);
+    my $res    = shift;
+    my $t1_nad = $t1_nad_entry->get_text();
+    my $t1_pcb = $t1_pcb_entry->get_text();
+    my $t1_len = $t1_len_entry->get_text();
+    my $t1_edc = $t1_edc_entry->get_text();
+
+    $t1_nad = hex_to_bin($t1_nad);
+
+    if ( length($t1_pcb) > 0 ) {
+        $t1_pcb = hex_to_bin($t1_pcb);
+    }
+    else {
+        $t1_pcb      = $t1_last_pcb ^ 0x40;
+        $t1_last_pcb = $t1_pcb;
+        $t1_pcb      = chr($t1_pcb);
+    }
+
+    if ( length($t1_len) > 0 ) {
+        $t1_len = hex_to_bin($t1_len);
+    }
+    else {
+        $t1_len = chr( length($res) );
+    }
+
+    if ( length($t1_edc) > 0 ) {
+        $t1_edc = hex_to_bin($t1_edc);
+    }
+    else {
+        my $cnt;
+        $t1_edc = 0;
+        for ( $cnt = 0 ; $cnt < length($res) ; $cnt++ ) {
+            $t1_edc ^= ord( substr( $res, $cnt, 1 ) );
+        }
+        $t1_edc = chr($t1_edc);
+    }
+
+    return ( $t1_nad . $t1_pcb . $t1_len . $res . $t1_edc );
 }
 
 sub glitch {
-	my @divs= {};
-	my $cnt;
-	my $snd_string;
-	
-	# default clkdiv
-	for($cnt=0; $cnt<22; $cnt++) {
-		$divs[$cnt]=$clkdiv;
-	}
-	
-	# (cycle,div) tuples
-	@_ = split(/,/,shift);
-	for($cnt=0; $cnt<=$#_; $cnt+=2) {
-		$divs[$_[$cnt]]=$_[$cnt+1];
-	}
-	
-	# prepare cmd buf
-	for($cnt=0; $cnt<22; $cnt++) {
-		#print "$cnt $divs[$cnt]\n";
-		$divs[$cnt] |= 0x60;
-		$snd_string = $snd_string . chr($divs[$cnt]);
-	}
-	$snd_string = $snd_string . chr(0x70);
-	
-	append( "", "!GLITCH $_\n" );
-	
-	return $device->write($snd_string);
-	
+    my @divs = {};
+    my $cnt;
+    my $snd_string;
+
+    # default clkdiv
+    for ( $cnt = 0 ; $cnt < 22 ; $cnt++ ) {
+        $divs[$cnt] = $clkdiv;
+    }
+
+    # (cycle,div) tuples
+    @_ = split( /,/, shift );
+    for ( $cnt = 0 ; $cnt <= $#_ ; $cnt += 2 ) {
+        $divs[ $_[$cnt] ] = $_[ $cnt + 1 ];
+    }
+
+    # prepare cmd buf
+    for ( $cnt = 0 ; $cnt < 22 ; $cnt++ ) {
+
+        #print "$cnt $divs[$cnt]\n";
+        $divs[$cnt] |= 0x60;
+        $snd_string = $snd_string . chr( $divs[$cnt] );
+    }
+    $snd_string = $snd_string . chr(0x70);
+
+    append( "", "!GLITCH $_\n" );
+
+    return $device->write($snd_string);
+
 }
 
 sub send_hex {
@@ -269,10 +270,10 @@ sub send_hex {
 
     $_ = shift;
 
-	if (/^glitch/) {
-		s/.*?\s+//;
-		return glitch($_);
-	}
+    if (/^glitch/) {
+        s/.*?\s+//;
+        return glitch($_);
+    }
 
     #print "$_\n";
 
@@ -313,9 +314,9 @@ sub send_hex {
     if ( length($key) > 0 ) {
         $shortcuts{$key} = $bin;
     }
-    
-    if($t1_enabled == 1) {
-	    $bin = t1_encap($bin);
+
+    if ( $t1_enabled == 1 ) {
+        $bin = t1_encap($bin);
     }
 
     append( ">", bin_to_hex( length($bin), $bin ) );
@@ -336,8 +337,8 @@ sub send_hex {
         $skip = length($bin);
     }
 
-    if($term eq "null") {
-       return 1;
+    if ( $term eq "null" ) {
+        return 1;
     }
 
     return $device->write($bin);
@@ -473,7 +474,7 @@ sub on_clkdiv_spinbtn_value_changed {
     $freq_label->set_text($text);
 
     $clkdiv_val = $val - 1;
-    $clkdiv = $clkdiv_val;
+    $clkdiv     = $clkdiv_val;
     $clkdiv_val += 0x20;
     $clkdiv_val = chr($clkdiv_val);
 }
@@ -483,15 +484,15 @@ sub on_set_clkdiv_btn_clicked {
 }
 
 sub on_t1_ckbtn_toggled {
-	my $btn = shift;
-	$t1_enabled = $btn->get_active();
-	
-	$t1_enabled = 0 if not defined($t1_enabled);
-	
-	if($t1_enabled == 1) {
-		$t1_hbox->show();
-	}
-	else {
-		$t1_hbox->hide();
-	}
+    my $btn = shift;
+    $t1_enabled = $btn->get_active();
+
+    $t1_enabled = 0 if not defined($t1_enabled);
+
+    if ( $t1_enabled == 1 ) {
+        $t1_hbox->show();
+    }
+    else {
+        $t1_hbox->hide();
+    }
 }
