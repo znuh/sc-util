@@ -50,7 +50,11 @@ sub hex_to_bin {
 my $dir  = "";
 my $term = "";
 
-if ( $ARGV[0] =~ /^fpga:/ ){
+my $t1_enabled = 0;
+
+my $t1_last_pcb = 0x40;
+
+if ( $ARGV[0] =~ /^fpga:/ ) {
     $term = "fpga";
     $base_freq = $ARGV[0];
     $base_freq =~ s/.*?://;
@@ -60,39 +64,45 @@ if ( $ARGV[0] =~ /^fpga:/ ){
 elsif ( $ARGV[0] =~ /^phoenix:/ ) {
     $term = "phoenix";
 }
+elsif ( $ARGV[0] =~ /^null/ ) {
+    $term = "null";
+}
 else {
     print "usage: $0 <terminal>:<device> (<macro file>)\n";
-    print "where terminal is either fpga or phoenix\n";
-    print "example: $0 fpga:/dev/ttyUSB0\n";
+    print "where terminal is either fpga, phoenix or null\n";
+    print "example: $0 phoenix:/dev/ttyUSB0\n";
     exit;
 }
 
 $_ = $ARGV[0];
 s/.*://;
 
-my $device = tie( *FH, "Device::SerialPort", $_ ) or die "open failed: $_";
+if($term ne "null") {
 
-$device->databits(8)       or die "databits failed";
-$device->stopbits(2)       or die "stopbits failed";
-$device->handshake("none") or die "handshake failed";
+	my $device = tie( *FH, "Device::SerialPort", $_ ) or die "open failed: $_";
 
-if ( $term eq "fpga" ) {
-    $device->baudrate(38400) or die "baudrate failed";
-    $device->parity("none") or die "parity failed";
+	$device->databits(8)       or die "databits failed";
+	$device->stopbits(2)       or die "stopbits failed";
+	$device->handshake("none") or die "handshake failed";
 
-    #$device->write("\x4f");
+	if ( $term eq "fpga" ) {
+	$device->baudrate(38400) or die "baudrate failed";
+	$device->parity("none") or die "parity failed";
+
+	#$device->write("\x4f");
+	}
+	elsif ( $term eq "phoenix" ) {
+	$device->baudrate(9600) or die "baudrate failed";
+	$device->parity("even") or die "parity failed";
+
+	#$device->rts_active(0) or die "RTS failed";
+	}
+
+	$device->write_settings or die "cannot write serial settings";
+
+	my $w = Glib::IO->add_watch( fileno(FH), 'in', \&read_cb )
+	or die "cannot watch device!";
 }
-elsif ( $term eq "phoenix" ) {
-    $device->baudrate(9600) or die "baudrate failed";
-    $device->parity("even") or die "parity failed";
-
-    #$device->rts_active(0) or die "RTS failed";
-}
-
-$device->write_settings or die "cannot write serial settings";
-
-my $w = Glib::IO->add_watch( fileno(FH), 'in', \&read_cb )
-  or die "cannot watch device!";
 
 my $glade = Gtk2::GladeXML->new("sc_util.glade");
 
@@ -104,6 +114,13 @@ my $file_in = $glade->get_widget('file_entry');
 my $editor    = $glade->get_widget('textview1');
 my $scrollwin = $glade->get_widget('scrolledwindow1');
 my $buffer    = $editor->get_buffer();
+
+my $t1_hbox = $glade->get_widget('t1_hbox');
+
+my $t1_nad_entry = $glade->get_widget('t1_nad_entry');
+my $t1_pcb_entry = $glade->get_widget('t1_pcb_entry');
+my $t1_len_entry = $glade->get_widget('t1_len_entry');
+my $t1_edc_entry = $glade->get_widget('t1_edc_entry');
 
 my $freq_label = $glade->get_widget('label1');
 $freq_label->set_text("set CLK = ".($base_freq/1000)."MHz / ");
@@ -173,6 +190,46 @@ sub append {
     }
 
     $buffer->insert( $end, $text );
+}
+
+sub t1_encap {
+	my $res = shift;
+	my $t1_nad = $t1_nad_entry->get_text();
+	my $t1_pcb = $t1_pcb_entry->get_text();
+	my $t1_len = $t1_len_entry->get_text();
+	my $t1_edc = $t1_edc_entry->get_text();
+	
+	$t1_nad = hex_to_bin($t1_nad);
+	
+	if (length($t1_pcb)>0) {
+		$t1_pcb = hex_to_bin($t1_pcb);
+	}
+	else {
+		$t1_pcb = $t1_last_pcb ^ 0x40;
+		$t1_last_pcb = $t1_pcb;
+		$t1_pcb = chr($t1_pcb);
+	}
+	
+	if (length($t1_len)>0) {
+		$t1_len = hex_to_bin($t1_len);
+	}
+	else {
+		$t1_len = chr(length($res));
+	}
+	
+	if (length($t1_edc)>0) {
+		$t1_edc = hex_to_bin($t1_edc);
+	}
+	else {
+		my $cnt;
+		$t1_edc = 0;
+		for($cnt=0; $cnt<length($res); $cnt++) {
+			$t1_edc ^= ord(substr($res,$cnt,1));
+		}
+		$t1_edc = chr($t1_edc);
+	}
+	
+	return ($t1_nad . $t1_pcb . $t1_len . $res . $t1_edc);
 }
 
 sub glitch {
@@ -256,6 +313,10 @@ sub send_hex {
     if ( length($key) > 0 ) {
         $shortcuts{$key} = $bin;
     }
+    
+    if($t1_enabled == 1) {
+	    $bin = t1_encap($bin);
+    }
 
     append( ">", bin_to_hex( length($bin), $bin ) );
 
@@ -273,6 +334,10 @@ sub send_hex {
     }
     elsif ( $term eq "phoenix" ) {
         $skip = length($bin);
+    }
+
+    if($term eq "null") {
+       return 1;
     }
 
     return $device->write($bin);
@@ -332,6 +397,7 @@ sub btn_reset_clicked_cb {
         select( undef, undef, undef, 0.2 );
         $device->write("\x4f");
     }
+    $t1_last_pcb = 0x40;
 }
 
 sub on_exec_btn_clicked {
@@ -414,4 +480,18 @@ sub on_clkdiv_spinbtn_value_changed {
 
 sub on_set_clkdiv_btn_clicked {
     $device->write($clkdiv_val);
+}
+
+sub on_t1_ckbtn_toggled {
+	my $btn = shift;
+	$t1_enabled = $btn->get_active();
+	
+	$t1_enabled = 0 if not defined($t1_enabled);
+	
+	if($t1_enabled == 1) {
+		$t1_hbox->show();
+	}
+	else {
+		$t1_hbox->hide();
+	}
 }
