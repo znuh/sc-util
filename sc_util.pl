@@ -77,9 +77,11 @@ else {
 $_ = $ARGV[0];
 s/.*://;
 
+my $device;
+
 if ( $term ne "null" ) {
 
-    my $device = tie( *FH, "Device::SerialPort", $_ ) or die "open failed: $_";
+    $device = tie( *FH, "Device::SerialPort", $_ ) or die "open failed: $_";
 
     $device->databits(8)       or die "databits failed";
     $device->stopbits(2)       or die "stopbits failed";
@@ -226,6 +228,7 @@ sub t1_encap {
         for ( $cnt = 0 ; $cnt < length($res) ; $cnt++ ) {
             $t1_edc ^= ord( substr( $res, $cnt, 1 ) );
         }
+	$t1_edc ^= ord($t1_len) ^ ord($t1_pcb) ^ ord($t1_nad);
         $t1_edc = chr($t1_edc);
     }
 
